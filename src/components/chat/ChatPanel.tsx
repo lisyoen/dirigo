@@ -43,8 +43,17 @@ type Message = {
   id?: string;
   role: string;
   content: string;
+  summary?: string;
   created_at?: string;
-  metadata?: { cards?: Array<{ card?: string }>; changed?: string[] };
+  metadata?: {
+    cards?: Array<{ card?: string }>;
+    changed?: string[];
+    tool?: string;
+    status?: string;
+    duration_ms?: number;
+    target?: string;
+    url?: string;
+  };
 };
 type LlmStatus = {
   reason: "no_default" | "unreachable" | "auth" | "model_missing" | "ok";
@@ -55,6 +64,34 @@ type LlmStatus = {
 };
 export function chatSessionStorageKey(projectSlug?: string) {
   return `apms.chat.session.${projectSlug || "global"}`;
+}
+
+function ToolMessageGroup({ messages }: { messages: Message[] }) {
+  return (
+    <div className="tool-message-group" aria-label="도구 호출 내역">
+      {messages.map((message, index) => {
+        const metadata = message.metadata || {};
+        const failed = metadata.status === "error";
+        const duration = Math.max(0, Number(metadata.duration_ms || 0));
+        const target = metadata.target || metadata.url;
+        return (
+          <details
+            className={`tool-message ${failed ? "tool-message-error" : ""}`}
+            key={message.id || `tool-${index}`}
+          >
+            <summary>
+              <span aria-hidden="true">🔧</span>
+              <strong>{metadata.tool || "tool"}</strong>
+              <span aria-label={failed ? "실패" : "성공"}>{failed ? "✗" : "✓"}</span>
+              <span>{(duration / 1000).toFixed(1)}s</span>
+              {target && <span className="tool-message-target">— {target}</span>}
+            </summary>
+            <p>{message.summary || "도구 실행 결과"}</p>
+          </details>
+        );
+      })}
+    </div>
+  );
 }
 
 function SessionPicker({
@@ -303,7 +340,8 @@ export default function ChatPanel({
     const previous = previousMessages.current;
     const changed =
       messages.length !== previous.length ||
-      messages.at(-1)?.content !== previous.at(-1)?.content;
+      (messages.at(-1)?.content || messages.at(-1)?.summary) !==
+        (previous.at(-1)?.content || previous.at(-1)?.summary);
     previousMessages.current = messages;
     if (!changed && !notice) return;
     if (forceNextScroll.current || nearBottom.current) {
@@ -714,6 +752,19 @@ export default function ChatPanel({
           )}
           {messages.map((message, index) => {
             const messageKey = message.id || `${message.role}-${index}`;
+            if (message.role === "tool") {
+              if (messages[index - 1]?.role === "tool") return null;
+              const nextNonTool = messages.findIndex(
+                (candidate, candidateIndex) =>
+                  candidateIndex > index && candidate.role !== "tool",
+              );
+              const group = messages.slice(
+                index,
+                nextNonTool === -1 ? messages.length : nextNonTool,
+              );
+              return <ToolMessageGroup messages={group} key={`tool-group-${messageKey}`} />;
+            }
+            if (message.role !== "user" && message.role !== "assistant") return null;
             const streamingAssistant =
               busy &&
               message.role === "assistant" &&

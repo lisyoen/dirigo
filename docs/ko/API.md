@@ -83,6 +83,8 @@ Markdown 원문 다운로드만 `text/markdown`을 반환한다.
 
 `GET /api/sessions`는 프로젝트 없는 세션만 반환하고, `project_slug`를 지정하면 인증 사용자가 소유한 해당 프로젝트 세션을 반환한다. 결과는 마지막 메시지 시각 최신순이며 `last_message_at`을 포함한다. `PATCH /api/sessions/{id}`는 `{"title":"..."}`을 받아 공백을 정규화한다. `DELETE`는 204를 반환하고 PostgreSQL 외래 키 cascade로 메시지도 삭제한다. 두 변경 API는 다른 사용자의 세션에 403을 반환한다. 첫 사용자 메시지는 줄바꿈을 제거한 앞 40자로 기본 제목을 교체한다.
 
+`GET /api/sessions/{id}`는 저장된 user·assistant 메시지는 그대로 반환하지만 모든 tool 행은 `{role:"tool", id, created_at, metadata:{tool,status,duration_ms,target|url}, summary}`로 변환한다. 도구별 고정 `summary`는 제목·URL, 검색어·결과 수, 기획 절·추가 건수, 작업 카드 또는 오류 코드·메시지만 설명한다. 저장된 JSON `content`, 가져온 페이지 본문, 검색 snippet, 문서 본문은 응답에 포함하지 않는다.
+
 ### 프로젝트 챗 웹 도구
 
 *구현 상태: 구현 완료*

@@ -1,6 +1,78 @@
 import { apiError, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
+type StoredMessage = {
+  id: string;
+  role: string;
+  content: string;
+  tokens?: number;
+  metadata?: Record<string, unknown> | null;
+  created_at: string;
+};
+
+function object(value: unknown): Record<string, any> {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, any>)
+    : {};
+}
+
+function text(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
+export function summarizeSessionMessage(message: StoredMessage) {
+  if (message.role !== "tool") return message;
+  const stored = object(message.metadata);
+  let output: Record<string, any> = {};
+  try {
+    output = object(JSON.parse(message.content));
+  } catch {}
+
+  const tool = text(stored.tool) || "unknown_tool";
+  const status =
+    stored.status === "error" || output.ok === false || Boolean(output.error)
+      ? "error"
+      : "ok";
+  const metadata: Record<string, unknown> = {
+    tool,
+    status,
+    duration_ms: Number.isFinite(Number(stored.duration_ms))
+      ? Number(stored.duration_ms)
+      : 0,
+  };
+  if (text(stored.target)) metadata.target = text(stored.target);
+  else if (typeof stored.url === "string") metadata.url = stored.url;
+
+  let summary: string;
+  if (status === "error") {
+    summary = [text(output.error) || "tool_error", text(output.message)]
+      .filter(Boolean)
+      .join(" — ");
+  } else if (tool === "fetch_url") {
+    summary = [text(output.title) || "제목 없음", text(output.finalUrl) || text(output.url) || text(stored.target)]
+      .filter(Boolean)
+      .join(" — ");
+  } else if (tool === "web_search") {
+    const query = text(output.query) || text(stored.target) || "검색";
+    summary = `${query} — 결과 ${Array.isArray(output.results) ? output.results.length : 0}건`;
+  } else if (tool === "append_planning") {
+    const count = Array.isArray(output.added) ? output.added.length : 0;
+    summary = `${text(output.section) || "기획 절"} — 추가 ${count}건`;
+  } else if (tool === "create_task") {
+    summary = text(output.card) || text(output.task?.title) || "작업지시서 발주됨";
+  } else {
+    summary = `${tool} 실행 완료`;
+  }
+
+  return {
+    role: "tool",
+    id: message.id,
+    created_at: message.created_at,
+    metadata,
+    summary,
+  };
+}
+
 async function ownedSession(id: string, userId: string) {
   const result = await db.query("SELECT * FROM sessions WHERE id=$1", [id]);
   if (!result.rows[0])
@@ -41,7 +113,7 @@ export async function GET(
         handover_number: Number(handover.rows[0].handover_number),
         continuation: continuation.rows[0] || null,
       },
-      messages: messages.rows,
+      messages: messages.rows.map(summarizeSessionMessage),
     });
   } catch (error) {
     return apiError(error);

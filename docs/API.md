@@ -110,6 +110,8 @@ The chat handler executes at most three tool rounds, injects each result as untr
 
 `GET /api/sessions` returns only projectless sessions; adding `project_slug` returns sessions for that owned project. Results are ordered by the most recent message time and include `last_message_at`. `PATCH /api/sessions/{id}` accepts `{"title":"..."}` and normalizes whitespace. `DELETE` returns 204 and PostgreSQL cascades deletion to messages. Both mutations return 403 when the session belongs to another user. The first user message replaces the default title with its first 40 characters after line breaks are removed.
 
+`GET /api/sessions/{id}` returns stored user and assistant messages normally, but converts every tool row to `{role:"tool", id, created_at, metadata:{tool,status,duration_ms,target|url}, summary}`. The fixed, tool-specific `summary` describes the title/URL, query/result count, planning section/add count, task card, or error code/message. The stored JSON `content`, fetched page text, search snippets, and document bodies are never included in the response.
+
 ## 3. Authentication
 
 *Implementation status: implemented*
