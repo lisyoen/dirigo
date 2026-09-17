@@ -106,6 +106,7 @@ opencode run --format json --file <task-relative-path>
 실제 지원 플래그는 구현 시 고정된 OpenCode 버전의 CLI 도움말로 검증한다.
 실행 파일 경로와 허용 인수는 관리자 설정의 allowlist에서 선택한다.
 작업 디렉터리는 해당 프로젝트의 승인된 checkout 또는 workspace다.
+프로젝트 설정의 `workdir`는 프로젝트 루트 기준 상대경로 또는 절대경로다. 따라서 `.`은 프로젝트 루트이고, 값을 지정하지 않으면 `<프로젝트-루트>/workspace`를 사용한다. 상대경로는 프로젝트 루트를 벗어날 수 없다.
 실제 경로는 `DIRIGO_DATA_ROOT` 또는 `DIRIGO_WORKDIR_ALLOWLIST`의 콜론 구분 절대 루트 아래여야 한다. 심볼릭 링크 탈출은 작업 실패와 보고서 사유로 기록한다.
 작업지시서 경로는 프로젝트 상대 경로로 전달한다.
 

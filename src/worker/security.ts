@@ -8,17 +8,24 @@ function contains(root: string, target: string) {
 }
 
 export async function resolveRunWorkdir(base: string, project: string, configured?: string) {
-  const requested = configured ? path.resolve(configured) : path.join(base, "workspace");
+  const projectRoot = path.resolve(base);
+  const relative = Boolean(configured) && !path.isAbsolute(configured!);
+  const requested = configured
+    ? relative ? path.resolve(projectRoot, configured) : path.resolve(configured)
+    : path.join(projectRoot, "workspace");
   const roots = [dataRoot(), ...getConfig({ project }).config.worker.workdir_allowlist];
   if (roots.some((root) => !path.isAbsolute(root))) throw new Error("workdir allowlist entries must be absolute paths");
-  if (!roots.some((root) => contains(path.resolve(root), requested))) {
-    throw new Error(`workdir outside DIRIGO_DATA_ROOT or DIRIGO_WORKDIR_ALLOWLIST: ${project}`);
+  const allowedRoots = roots.map((root) => path.resolve(root));
+  const permitted = (!relative || contains(projectRoot, requested)) && allowedRoots.some((root) => contains(root, requested));
+  if (!permitted) {
+    throw new Error(`workdir outside allowed roots: project=${project} requested=${requested} allowed=${allowedRoots.join(path.delimiter)}`);
   }
   await Promise.all(roots.map((root) => mkdir(root, { recursive: true, mode: 0o700 })));
   await mkdir(requested, { recursive: true, mode: 0o700 });
   const [target, ...allowed] = await Promise.all([realpath(requested), ...roots.map((root) => realpath(root))]);
-  if (!allowed.some((root) => contains(root, target))) {
-    throw new Error(`workdir outside DIRIGO_DATA_ROOT or DIRIGO_WORKDIR_ALLOWLIST: ${project}`);
+  const escapedProject = relative && !contains(await realpath(projectRoot), target);
+  if (escapedProject || !allowed.some((root) => contains(root, target))) {
+    throw new Error(`workdir outside allowed roots: project=${project} requested=${requested} allowed=${allowed.join(path.delimiter)}`);
   }
   return target;
 }

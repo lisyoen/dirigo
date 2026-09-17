@@ -35,6 +35,7 @@ secrets: []
 ## 워커 실행 기준
 
 - 워커는 OpenCode를 사용하며 작업별 `conflict_keys`가 겹치면 동시에 실행하지 않는다.
+- `workdir`는 프로젝트 루트 기준 상대경로 또는 절대경로다. / `workdir` is either relative to the project root or an absolute path.
 - 기본 동시 실행 수는 `max_concurrent`를 따르고 작업 timeout 기본값은 20분으로 한다.
 - timeout 또는 검증 실패 시 성공으로 처리하지 않고 원인과 증거를 보고한다.
 

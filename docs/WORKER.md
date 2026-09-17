@@ -106,6 +106,7 @@ opencode run --format json --file <task-relative-path>
 The actual support flags are validated with a fixed version of the OpenCode CLI help at implementation.
 Select the executable path and allow arguments from the allowlist in the admin settings.
 The working directory is the approved checkout or workspace for that project.
+The project setting's `workdir` accepts either a path relative to the project root or an absolute path. `.` therefore selects the project root; an omitted value selects `<project-root>/workspace`. A relative path may not escape the project root.
 Its real path must be below `DIRIGO_DATA_ROOT` or a colon-delimited absolute root in `DIRIGO_WORKDIR_ALLOWLIST`; symlink escapes fail the task and are recorded in its report.
 The work order path is communicated to the project relative path.
 
