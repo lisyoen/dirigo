@@ -516,7 +516,7 @@ Implementation status: Implemented (#017).
 
 `POST /api/admin/llm-connections/{id}` runs the same five-second health probe used by the scheduler and returns `ok`, `reason`, final `url`, `response_ms`, `error`, and `checked_at`. For OpenAI and compatible providers it calls `{base_url}/v1/models` and verifies the configured model. The Anthropic probe makes a minimal Messages request. `PATCH` with `{"is_default":true}` atomically replaces the global default.
 
-`POST /api/chat` checks the selected default before storing the user message. A failed probe returns HTTP 503 with the same `code`, localized `error`, and diagnostic `last_error` shown by the status banner. Successful streamed messages include `user_created_at` and assistant `created_at`.
+`POST /api/chat` checks the selected default before storing the user message. A failed probe returns HTTP 503 with the same `code`, localized `error`, and diagnostic `last_error` shown by the status banner. Successful streamed messages include `user_created_at`, assistant `created_at`, and `changed: string[]`. `changed` contains `proposal` after a successful or duplicate-only `append_planning` result and `tasks` after a successful `create_task`; unrelated and failed tool calls do not add entries.
 ## LLM connection status
 
 *Implementation status: implemented*

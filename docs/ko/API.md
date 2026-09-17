@@ -518,7 +518,7 @@ Implementation status: 구현 완료 (#017).
 
 관리자 연결 테스트는 `POST /api/admin/llm-connections/{id}`를 사용합니다. 응답에는 최종 모델 목록 URL, 응답 시간, 원인 분류, 업스트림 오류 원문이 포함됩니다. `PATCH /api/admin/llm-connections/{id}`에 `{"is_default":true}`를 보내면 기존 전역 기본 연결을 해제한 뒤 요청한 연결을 기본으로 지정합니다.
 
-채팅 전송은 사용자 메시지를 저장하기 전에 동일한 실시간 헬스체크를 수행합니다. 실패하면 상태 배너와 동일한 `reason`, 조치 가능한 한글 `error`, 정리된 `last_error`를 HTTP 503으로 반환합니다.
+채팅 전송은 사용자 메시지를 저장하기 전에 동일한 실시간 헬스체크를 수행합니다. 실패하면 상태 배너와 동일한 `reason`, 조치 가능한 한글 `error`, 정리된 `last_error`를 HTTP 503으로 반환합니다. 성공 스트림은 `user_created_at`, assistant `created_at`, `changed: string[]`를 포함합니다. `changed`에는 성공 또는 중복만 확인된 `append_planning` 뒤 `proposal`, 성공한 `create_task` 뒤 `tasks`가 들어가며 무관하거나 실패한 도구는 포함하지 않습니다.
 
 ## 채팅 메시지 시각
 

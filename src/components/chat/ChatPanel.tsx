@@ -44,7 +44,7 @@ type Message = {
   role: string;
   content: string;
   created_at?: string;
-  metadata?: { cards?: Array<{ card?: string }> };
+  metadata?: { cards?: Array<{ card?: string }>; changed?: string[] };
 };
 type LlmStatus = {
   reason: "no_default" | "unreachable" | "auth" | "model_missing" | "ok";
@@ -175,12 +175,16 @@ export default function ChatPanel({
   user,
   llmConfigured = true,
   initialPrompt = "",
+  onDocumentsChanged,
+  onOpenDocument,
 }: {
   projectSlug?: string;
   layout: ChatPanelLayout;
   user?: { email: string; role: string };
   llmConfigured?: boolean;
   initialPrompt?: string;
+  onDocumentsChanged?: (changed: string[]) => void;
+  onOpenDocument?: (section: string) => void;
 }) {
   const router = useRouter();
   const [sessions, setSessions] = useState<Session[]>([]),
@@ -486,9 +490,17 @@ export default function ChatPanel({
               role: "assistant",
               content: data.content,
               created_at: data.created_at,
-              metadata: { cards: data.cards },
+              metadata: { cards: data.cards, changed: data.changed },
             },
           ]);
+          if (Array.isArray(data.changed) && data.changed.length) {
+            onDocumentsChanged?.(data.changed);
+            window.dispatchEvent(
+              new CustomEvent("dirigo:documents-changed", {
+                detail: { project: projectSlug, changed: data.changed },
+              }),
+            );
+          }
           setActive(
             (v) =>
               v && {
@@ -533,6 +545,15 @@ export default function ChatPanel({
     nearBottom.current = true;
     setShowLatest(false);
     setUnreadMessages(0);
+  }
+  function openDocument(section: string) {
+    if (layout === "fullscreen" && projectSlug) {
+      localStorage.setItem(CHAT_PANEL_FULLSCREEN_KEY, "false");
+      localStorage.setItem(`apms.project.section.${projectSlug}`, section);
+      router.push(`/p/${projectSlug}`);
+      return;
+    }
+    onOpenDocument?.(section);
   }
   async function copyMessage(content: string, key: string) {
     let copied = false;
@@ -727,6 +748,21 @@ export default function ChatPanel({
                   ✓ {card.card}
                 </div>
               ))}
+              {message.role === "assistant" &&
+                Boolean(message.metadata?.changed?.length) && (
+                  <div className="message-document-links">
+                    {message.metadata?.changed?.includes("proposal") && (
+                      <button type="button" onClick={() => openDocument("proposal")}>
+                        기획서 보기
+                      </button>
+                    )}
+                    {message.metadata?.changed?.includes("tasks") && (
+                      <button type="button" onClick={() => openDocument("tasks")}>
+                        작업 보기
+                      </button>
+                    )}
+                  </div>
+                )}
               {message.created_at && (
                 <time
                   className="message-time"

@@ -23,6 +23,7 @@ export default function ProjectClient({ slug }: { slug: string }) {
   const [etag, setEtag] = useState("");
   const [updatedAt, setUpdatedAt] = useState("");
   const [editing, setEditing] = useState(false);
+  const [externalChange, setExternalChange] = useState(false);
   const [toast, setToast] = useState("");
   const [taskItems, setTaskItems] = useState(emptyItems);
   const [taskTotals, setTaskTotals] = useState({ pending: 0, in_progress: 0, done: 0, failed: 0, reports: 0 });
@@ -32,6 +33,7 @@ export default function ProjectClient({ slug }: { slug: string }) {
   const [chatOpen, setChatOpen] = useState(true);
   const [chatWidth, setChatWidth] = useState(420);
   const dragging = useRef(false);
+  const skipNextDocumentEvent = useRef(false);
   const loadDoc = useCallback(async (kind: string) => {
     const r = await fetch(`/api/projects/${slug}/docs/${kind}`,{cache:"no-store"});
     if (r.ok) {setContent(await r.text());setEtag(r.headers.get("etag")||"");setUpdatedAt(r.headers.get("x-updated-at")||"");}
@@ -68,7 +70,12 @@ export default function ProjectClient({ slug }: { slug: string }) {
     setChatOpen(localStorage.getItem("apms.project.chat.open") !== "false");
     const saved = Number(localStorage.getItem("apms.project.chat.width"));
     if (saved >= 320 && saved <= 720) setChatWidth(saved);
-  }, []);
+    const requestedSection = localStorage.getItem(`apms.project.section.${slug}`);
+    if (requestedSection && docs.some((doc) => doc.key === requestedSection)) {
+      setSection(requestedSection);
+      localStorage.removeItem(`apms.project.section.${slug}`);
+    }
+  }, [slug]);
   useEffect(() => {
     if (section === "tasks") void refreshTasks();
     else {
@@ -83,6 +90,31 @@ export default function ProjectClient({ slug }: { slug: string }) {
     window.addEventListener("apms:tasks-changed", refresh);
     return () => { window.clearInterval(timer);window.removeEventListener("apms:tasks-changed", refresh); };
   }, [section, refreshTasks]);
+  const handleDocumentsChanged = useCallback((changed: string[]) => {
+    if (!changed.includes(section)) return;
+    if (section === "tasks") {
+      void refreshTasks();
+      return;
+    }
+    if (editing) {
+      setExternalChange(true);
+      return;
+    }
+    void loadDoc(section);
+  }, [editing, loadDoc, refreshTasks, section]);
+  useEffect(() => {
+    const receive = (event: Event) => {
+      const detail = (event as CustomEvent<{ project?: string; changed?: string[] }>).detail;
+      if (detail?.project !== slug || !Array.isArray(detail.changed)) return;
+      if (skipNextDocumentEvent.current) {
+        skipNextDocumentEvent.current = false;
+        return;
+      }
+      handleDocumentsChanged(detail.changed);
+    };
+    window.addEventListener("dirigo:documents-changed", receive);
+    return () => window.removeEventListener("dirigo:documents-changed", receive);
+  }, [handleDocumentsChanged, slug]);
   useEffect(() => {
     const move = (event: PointerEvent) => {
       if (!dragging.current) return;
@@ -181,7 +213,15 @@ export default function ProjectClient({ slug }: { slug: string }) {
         {section !== "tasks" ? (
           <>
             {editing ? (
-              <MdEditor title={`${slug}.${section}`} initialContent={content} project={slug} documentPath={`docs/${slug}.${section}.md`} onSave={save} onCancel={()=>setEditing(false)} onReload={async()=>{await loadDoc(section);setEditing(false);}} />
+              <>
+                {externalChange && (
+                  <div className="document-change-banner" role="alert">
+                    채팅이 기획서를 갱신했습니다. 저장 시 충돌이 날 수 있습니다 —{" "}
+                    <button type="button" onClick={async()=>{await loadDoc(section);setEditing(false);setExternalChange(false);}}>다시 불러오기</button>
+                  </div>
+                )}
+                <MdEditor title={`${slug}.${section}`} initialContent={content} project={slug} documentPath={`docs/${slug}.${section}.md`} onSave={save} onCancel={()=>{setEditing(false);setExternalChange(false);}} onReload={async()=>{await loadDoc(section);setEditing(false);setExternalChange(false);}} />
+              </>
             ) : (
                 <MdViewer
                   key={`${section}:${updatedAt}`}
@@ -189,7 +229,7 @@ export default function ProjectClient({ slug }: { slug: string }) {
                   title={`${slug}.${section}`}
                   onShare={share}
                   editable={["guide","next","setting"].includes(section)}
-                  onEdit={()=>setEditing(true)}
+                  onEdit={()=>{setEditing(true);setExternalChange(false);}}
                 />
             )}
           </>
@@ -209,7 +249,7 @@ export default function ProjectClient({ slug }: { slug: string }) {
     </main>
     {newTaskOpen&&<NewTaskModal pendingTasks={taskItems.pending} onClose={()=>setNewTaskOpen(false)} onCreate={createTask} />}
     <button className="chat-collapse" aria-expanded={chatOpen} onClick={()=>{const next=!chatOpen;setChatOpen(next);localStorage.setItem("apms.project.chat.open",String(next));}}>{chatOpen?"챗봇 접기":"챗봇 펴기"}</button>
-    {chatOpen&&<aside className="project-chat" data-testid="project-chat-panel"><div className="chat-resizer" onPointerDown={(event)=>{dragging.current=true;event.currentTarget.setPointerCapture(event.pointerId);}}/><ChatPanel projectSlug={slug} layout="panel" /></aside>}
+    {chatOpen&&<aside className="project-chat" data-testid="project-chat-panel"><div className="chat-resizer" onPointerDown={(event)=>{dragging.current=true;event.currentTarget.setPointerCapture(event.pointerId);}}/><ChatPanel projectSlug={slug} layout="panel" onDocumentsChanged={(changed)=>{skipNextDocumentEvent.current=true;handleDocumentsChanged(changed);}} onOpenDocument={setSection} /></aside>}
     </div>
   );
 }
